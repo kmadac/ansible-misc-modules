@@ -29,19 +29,12 @@ options:
         required: true
         description:
             - A patch file as accepted by the gnu patch tool
-    strip:
-        required: true
-        aliases: [ p ]
-        description:
-            - Number that indicates the smallest prefix containing leading slashes that 
-          will be stripped from each file name found in the patch file. For more information
-          see the strip parameter of the gnu patch tool.
-    basedir:
+    filetopatch:
         required: true
         description:
-            - base directory in which the patch file will be applied
+            - A file which needs to be patched
 examples:
-    - code: "patch: patchfile=/tmp/critical.patch strip=1 basedir=/usr/share/pyshared/paramiko"
+    - code: "patch: patchfile=/tmp/critical.patch filetopatch=/usr/share/pyshared/paramiko/critical"
       description: Example git checkout from Ansible Playbooks
 '''
 
@@ -51,13 +44,15 @@ def _run(args):
     rc = cmd.returncode
     return (rc, out, err)
 
-def _is_already_applied(patch_file, strip):
-    reverse_cmd = "patch -s -R -N -p%s --dry-run < %s" % (strip, patch_file)
+def _is_already_applied(patchfile, filetopatch):
+    # reverse_cmd = "patch -s -R -N -p%s --dry-run < %s" % (strip, patch_file)
+    reverse_cmd = "patch -s -N --dry-run %s < %s" % (filetopatch, patchfile)
     (rc, _, _) = _run(reverse_cmd)
-    return rc == 0
+    return rc == 1
 
-def _apply_patch(module, patch_file, strip):
-    patch_cmd = "patch -s -N -t -r - -p%s < %s" % (strip, patch_file)
+def _apply_patch(module, patchfile, filetopatch):
+    # patch_cmd = "patch -s -N -t -r - -p%s < %s" % (strip, patch_file)
+    patch_cmd = "patch -s -N %s < %s" % (filetopatch, patchfile)
     (rc, out, err) = _run(patch_cmd)
     if rc != 0:
         msg = out if not err else err
@@ -65,26 +60,19 @@ def _apply_patch(module, patch_file, strip):
 
 def _get_params(module):
     patchfile = os.path.expanduser(module.params['patchfile'])
-    strip = module.params['strip']
-    basedir = module.params['basedir']
-
-    if basedir:
-        os.chdir(os.path.expanduser(basedir))
+    filetopatch = os.path.expanduser(module.params['filetopatch'])
 
     if not os.path.exists(patchfile):
         module.fail_json(msg="patchfile %s doesn't exist" % (patchfile))
     if not os.access(patchfile, os.R_OK):
         module.fail_json(msg="patchfile %s not readable" % (patchfile))
 
-    if not os.path.exists(basedir):
-        module.fail_json(msg="basedir %s doesn't exist" % (patchfile))
+    if not os.path.exists(filetopatch):
+        module.fail_json(msg="filetopatch %s doesn't exist" % (filetopatch))
+    if not os.access(filetopatch, os.W_OK):
+        module.fail_json(msg="filetopatch %s not writable" % (filetopatch))
 
-    try:
-        strip = int(strip)
-    except Exception:
-        module.fail_json(msg="p must be a number")
-
-    return patchfile, strip, basedir
+    return patchfile, filetopatch
 
 # ===========================================
 
@@ -92,16 +80,15 @@ def main():
     module = AnsibleModule(
         argument_spec = dict(
             patchfile=dict(required=True),
-            basedir=dict(),
-            strip=dict(default=0, aliases=['p'])	
+            filetopatch=dict(required=True)
         ),
     )
-    patchfile, strip, basedir = _get_params(module)
+    patchfile, filetopatch = _get_params(module)
 
     changed = False
 
-    if not _is_already_applied(patchfile, strip):
-        _apply_patch(module, patchfile, strip)
+    if not _is_already_applied(patchfile, filetopatch):
+        _apply_patch(module, patchfile, filetopatch)
         changed = True
 
     module.exit_json(changed=changed)
