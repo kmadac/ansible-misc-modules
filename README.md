@@ -13,7 +13,7 @@ Example:
 ```
 
 name: Patch some paramiko code
-patch: patchfile=/tmp/critical.patch strip=1 basedir=/usr/share/pyshared/paramiko"
+patch: patchfile=/tmp/critical.patch filetopatch=/usr/share/pyshared/paramiko/critical"
 
 ```
 
